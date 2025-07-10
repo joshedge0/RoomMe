@@ -1,0 +1,48 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgres://${DATABASE_USER}:${DATABASE_PW}@postgres:5432/${DATABASE_NAME}?sslmode=disable
+    depends_on:
+      - postgres
+    networks:
+      - internal
+
+  postgres:
+    image: postgres:15
+    restart: always
+    environment:
+      POSTGRES_USER: ${DATABASE_USER}
+      POSTGRES_PASSWORD: ${DATABASE_PW}
+      POSTGRES_DB: ${DATABASE_NAME}
+    volumes:
+      - roomme-data:/var/lib/postgresql/data
+    networks:
+      - internal
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres
+    networks:
+      - internal
+      - web
+    volumes:
+     - pgadmin-data:/var/lib/pgadmin
+
+volumes:
+  roomme-data:
+  pgadmin-data:
+
+
+networks:
+  web:
+  internal:
