@@ -69,3 +69,24 @@ next-env.d.ts
 # Temporary folders
 tmp/
 temp/
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test binary, built with `go test -c`
+*.test
+
+# Go coverage files
+*.out
+*.prof
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Air (live reload tool) temp files
+tmp/

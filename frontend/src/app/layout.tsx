@@ -4,6 +4,7 @@ import './globals.css';
 import { Header } from '@/components/layout/header';
 import { SessionProvider } from 'next-auth/react';
 import { ThemeProvider } from '@/components/layout/theme-provider';
+import { Toaster } from 'react-hot-toast';
 
 export const metadata: Metadata = {
   title: 'RoomMe',
@@ -47,6 +48,9 @@ export default async function RootLayout({
                 <Header />
                 <div className='grow'>{children}</div>
               </div>
+              
+              <Toaster
+              position="bottom-center" />
             </SessionProvider>
           </ThemeProvider>
         </div>

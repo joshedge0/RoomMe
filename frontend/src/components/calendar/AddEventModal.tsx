@@ -9,6 +9,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import axios from "axios";
 import {
   Select,
   SelectTrigger,
@@ -20,7 +21,6 @@ import { Label } from "@/components/ui/label";
 import { Calendar } from "@/components/ui/calendar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { DateTime } from "next-auth/providers/kakao";
 import {
   Popover,
   PopoverContent,
@@ -28,12 +28,13 @@ import {
 } from "@/components/ui/popover";
 import { ChevronDownIcon } from "lucide-react";
 import * as React from "react";
+import toast from 'react-hot-toast';
 
 type EventFormValues = {
   name: string;
   date: Date;
-  timefrom: string;
-  timeuntil: string;
+  time_from: string;
+  time_until: string;
   category: string;
 };
 
@@ -48,20 +49,51 @@ export function AddEventModal({
     defaultValues: {
       name: "",
       date: undefined,
-      timefrom: "12:00",
-      timeuntil: "14:00",
+      time_from: "12:00",
+      time_until: "14:00",
       category: "",
     },
   });
 
   const [open, setOpen] = React.useState(false);
 
-  const onSubmit = (values: EventFormValues) => {
-    console.log("Form data:", values);
+  const api = axios.create({
+    baseURL: "http://localhost:4000",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  const onSubmit = async (values: EventFormValues) => {
+    const eventData = {
+        ...values,
+        time_from: new Date(`${values.date.toISOString().split('T')[0]}T${values.time_from}:00`).toISOString(),
+        time_until: new Date(`${values.date.toISOString().split('T')[0]}T${values.time_until}:00`).toISOString()
+    };
+
+      try {
+        const response = await api.post('/api/events', eventData);
+        if(response.status = 201){
+            toast.success('Event saved!');
+            form.reset();
+        } else {
+          toast.error('Failed to create event');
+        }
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          console.error(error.response);
+        } else {
+          console.error(error);
+          toast.error('Error while creating event');
+        }  
+      }
+    
+      setIsOpen(false);
   };
 
   const handleCancel = () => {
     setIsOpen(false);
+    form.reset();
   };
 
   if (!isOpen) return null;
@@ -135,7 +167,7 @@ export function AddEventModal({
 
               <FormField
                 control={form.control}
-                name="timefrom"
+                name="time_from"
                 render={({ field }) => (
                   <FormItem className="flex items-center gap-2">
                     <FormControl className="flex-1">
@@ -158,7 +190,7 @@ export function AddEventModal({
 
               <FormField
                 control={form.control}
-                name="timeuntil"
+                name="time_until"
                 render={({ field }) => (
                   <FormItem className="flex items-center gap-2">
                     <FormControl className="flex-1">
@@ -203,7 +235,7 @@ export function AddEventModal({
               )}
             />
             <div className="flex justify-between pt-4">
-              <Button variant="outlinedark" onClick={handleCancel}>
+              <Button variant="outlinedark" onClick={handleCancel} type="button">
                 Cancel
               </Button>
               <Button type="submit">Save</Button>

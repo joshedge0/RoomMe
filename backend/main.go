@@ -8,26 +8,35 @@ import (
 	"os"
 	"time"
 
+	"github.com/joho/godotenv" // for local use, remove for prod
 	_ "github.com/lib/pq"
 )
 
 type Event struct {
-	ID         int       `db:"id"`
-	Name       string    `db:"name"`
-	DateTime   time.Time `db:"datetime"`
-	CalendarID int       `db:"calendar_id"`
-	UserID     int       `db:"user_id"`
+	ID         int       `db:"id" json:"id"`
+	Name       string    `db:"name" json:"name"`
+	Category   string    `db:"category" json:"category"`
+	TimeFrom   time.Time `db:"time_from" json:"time_from"`
+	TimeUntil  time.Time `db:"time_until" json:"time_until"`
+	CalendarID int       `db:"calendar_id" json:"calendar_id"`
+	UserID     int       `db:"user_id" json:"user_id"`
 }
 
 var db *sql.DB
 
 func main() {
+	var err error
+
+	err = godotenv.Load("../.env")
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
+
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		log.Fatal("DATABASE_URL environment variable not set")
 	}
 
-	var err error
 	db, err = sql.Open("postgres", dsn)
 	if err != nil {
 		log.Fatal(err)
@@ -35,7 +44,7 @@ func main() {
 
 	defer db.Close()
 
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	eventsHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
 			events, err := getEvents(db)
@@ -61,7 +70,7 @@ func main() {
 		}
 	})
 
-	http.Handle("/api/events", enableCORS(handler))
+	http.Handle("/api/events", enableCORS(eventsHandler))
 
 	log.Fatal(http.ListenAndServe(":4000", nil))
 }
@@ -76,7 +85,7 @@ func getEvents(db *sql.DB) ([]Event, error) {
 	var events []Event
 	for rows.Next() {
 		var e Event
-		if err := rows.Scan(&e.ID, &e.Name, &e.DateTime, &e.CalendarID, &e.UserID); err != nil {
+		if err := rows.Scan(&e.ID, &e.Name, &e.Category, &e.TimeFrom, &e.TimeUntil, &e.CalendarID, &e.UserID); err != nil {
 			return nil, err
 		}
 		events = append(events, e)
@@ -86,10 +95,10 @@ func getEvents(db *sql.DB) ([]Event, error) {
 
 func createEvent(db *sql.DB, e Event) error {
 	query := `
-        INSERT INTO events (name, datetime, calendar_id, user_id)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO events (name, category, time_from, time_until, calendar_id, user_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
     `
-	_, err := db.Exec(query, e.Name, e.DateTime, e.CalendarID, e.UserID)
+	_, err := db.Exec(query, e.Name, e.Category, e.TimeFrom, e.TimeUntil, e.CalendarID, e.UserID)
 	return err
 }
 

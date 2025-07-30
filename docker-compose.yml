@@ -19,6 +19,8 @@ services:
       POSTGRES_DB: ${DATABASE_NAME}
     volumes:
       - roomme-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     networks:
       - internal
 
