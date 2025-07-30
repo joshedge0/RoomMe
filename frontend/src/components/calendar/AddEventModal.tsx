@@ -1,12 +1,11 @@
 "use client";
 
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import axios from "axios";
@@ -65,14 +64,8 @@ export function AddEventModal({
   });
 
   const onSubmit = async (values: EventFormValues) => {
-    const eventData = {
-        ...values,
-        time_from: new Date(`${values.date.toISOString().split('T')[0]}T${values.time_from}:00`).toISOString(),
-        time_until: new Date(`${values.date.toISOString().split('T')[0]}T${values.time_until}:00`).toISOString()
-    };
-
       try {
-        const response = await api.post('/api/events', eventData);
+        const response = await api.post('/api/events', values);
         if(response.status = 201){
             toast.success('Event saved!');
             form.reset();
@@ -87,7 +80,6 @@ export function AddEventModal({
           toast.error('Error while creating event');
         }  
       }
-    
       setIsOpen(false);
   };
 

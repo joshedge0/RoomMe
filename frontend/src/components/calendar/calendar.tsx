@@ -1,17 +1,43 @@
 "use client";
 
+import axios from "axios";
 import { Week } from "./week";
 import { AddEventModal } from "./AddEventModal";
 import { Button } from "../ui/button";
 import { ChevronRight, ChevronLeft } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 
 export function Calendar() {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
   let daysOfTheWeek = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
+
+  const api = axios.create({
+    baseURL: "http://localhost:4000",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  useEffect(() => {
+    const fetchEvents = async () => {
+      setLoading(true);
+      try {
+        const response = await api.get(`/api/events?year=${year}&month=${month}`);
+        setEvents(response.data);
+      } catch (error) {
+        console.error('Error fetching events:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchEvents();
+  }, [currentDate]);
 
   const { dates: calendarDates, weeksNeeded } = generateCalendarDates(
     year,
