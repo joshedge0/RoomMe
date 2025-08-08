@@ -1,6 +1,8 @@
 "use client";
 
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import {
   Form,
   FormControl,
@@ -25,26 +27,63 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { ChevronDownIcon } from "lucide-react";
-import * as React from "react";
+import { ChevronDownIcon, X } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
 import toast from 'react-hot-toast';
+import { CalendarEvent } from '@/lib/types';
 
-type EventFormValues = {
-  name: string;
-  date: Date;
-  time_from: string;
-  time_until: string;
-  category: string;
-};
+// Form validation schema
+const eventFormSchema = z.object({
+  name: z.string().min(1, "Event name is required").max(100, "Event name too long"),
+  date: z.date().refine((val) => val !== undefined, {
+    message: "Please select a date"
+  }),
+  time_from: z.string().min(1, "Start time is required"),
+  time_until: z.string().min(1, "End time is required"),
+  category: z.string().min(1, "Please select a category"),
+}).refine(
+  (data) => {
+    // Validate that end time is after start time
+    const startTime = new Date(`2000-01-01T${data.time_from}`);
+    const endTime = new Date(`2000-01-01T${data.time_until}`);
+    return endTime > startTime;
+  },
+  {
+    message: "End time must be after start time",
+    path: ["time_until"],
+  }
+);
+
+type EventFormValues = z.infer<typeof eventFormSchema>;
+
+// Constants
+const CATEGORIES = [
+  { value: "personal", label: "Personal" },
+  { value: "work", label: "Work" },
+  { value: "family", label: "Family" },
+  { value: "vacation", label: "Vacation" },
+] as const;
+
+const API_BASE_URL = "http://localhost:4000";
+
+interface AddEventModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onEventCreated?: (event: CalendarEvent) => void;
+}
 
 export function AddEventModal({
   isOpen,
-  setIsOpen,
-}: {
-  isOpen: boolean;
-  setIsOpen: (_isOpen: boolean) => void;
-}) {
+  onClose,
+  onEventCreated,
+}: AddEventModalProps) {
+  // State
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
+
+  // Form setup with validation
   const form = useForm<EventFormValues>({
+    resolver: zodResolver(eventFormSchema),
     defaultValues: {
       name: "",
       date: undefined,
@@ -54,149 +93,199 @@ export function AddEventModal({
     },
   });
 
-  const [open, setOpen] = React.useState(false);
-
-  const api = axios.create({
-    baseURL: "http://localhost:4000",
+  // API instance - memoized
+  const api = useMemo(() => axios.create({
+    baseURL: API_BASE_URL,
     headers: {
       "Content-Type": "application/json",
     },
-  });
+  }), []);
 
-  const onSubmit = async (values: EventFormValues) => {
-      try {
-        const response = await api.post('/api/events', values);
-        if(response.status = 201){
-            toast.success('Event saved!');
-            form.reset();
-        } else {
-          toast.error('Failed to create event');
+  // Form submission handler
+  const onSubmit = useCallback(async (values: EventFormValues) => {
+    setIsSubmitting(true);
+    
+    try {
+      const response = await api.post('/api/events', {
+        ...values,
+        date: `${values.date.getFullYear()}-${String(values.date.getMonth() + 1).padStart(2, '0')}-${String(values.date.getDate()).padStart(2, '0')}`,
+      });
+      
+      if (response.status === 201) {
+        toast.success('Event created successfully!');
+        
+        // Call parent callback with new event data
+        if (onEventCreated) {
+          onEventCreated(response.data);
         }
-      } catch (error) {
-        if (axios.isAxiosError(error)) {
-          console.error(error.response);
-        } else {
-          console.error(error);
-          toast.error('Error while creating event');
-        }  
+        
+        // Reset form and close modal
+        form.reset();
+        onClose();
+      } else {
+        toast.error('Failed to create event');
       }
-      setIsOpen(false);
-  };
+    } catch (error) {
+      console.error('Error creating event:', error);
+      
+      if (axios.isAxiosError(error)) {
+        const errorMessage = error.response?.data?.message || 'Failed to create event';
+        toast.error(errorMessage);
+      } else {
+        toast.error('An unexpected error occurred');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [api, onEventCreated, onClose, form]);
 
-  const handleCancel = () => {
-    setIsOpen(false);
+  // Cancel handler
+  const handleCancel = useCallback(() => {
     form.reset();
-  };
+    onClose();
+  }, [form, onClose]);
 
+  // Close handler for backdrop/X button
+  const handleClose = useCallback((e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    if (!isSubmitting) {
+      handleCancel();
+    }
+  }, [handleCancel, isSubmitting]);
+
+  // Backdrop click handler
+  const handleBackdropClick = useCallback((e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
+    }
+  }, [handleClose]);
+
+  // Don't render if not open
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black opacity-10" />
-      <div className="relative w-96 rounded-lg border border-border bg-background p-6 shadow-lg">
-        <h2 className="mb-4 text-2xl font-bold text-foreground">Add Event</h2>
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={handleBackdropClick}
+    >
+      <div className="relative w-full max-w-md rounded-lg border border-border bg-background p-6 shadow-lg mx-4">
+        {/* Header with close button */}
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-foreground">Add Event</h2>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClose}
+            disabled={isSubmitting}
+            className="h-6 w-6 rounded-sm opacity-70 hover:opacity-100"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </Button>
+        </div>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* Event Name */}
             <FormField
               control={form.control}
               name="name"
               render={({ field }) => (
-                <FormItem className="flex items-center gap-2">
-                  <FormControl className="flex-1">
-                    <Input placeholder="Enter name" {...field} />
+                <FormItem>
+                  <FormControl>
+                    <Input 
+                      id="event-name"
+                      placeholder="Enter event name" 
+                      disabled={isSubmitting}
+                      {...field} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
 
-            <div className="flex flex-row justify-between">
+            {/* Date and Time Row */}
+            <div className="grid grid-cols-3 gap-4">
+              {/* Date Picker */}
               <FormField
                 control={form.control}
                 name="date"
                 render={({ field }) => (
-                  <FormItem className="flex items-center gap-2">
-                    <FormControl className="flex-1">
-                      <div className="flex flex-col gap-3">
-                        <Label htmlFor="date-picker" className="px-1">
-                          Date
-                        </Label>
-                        <Popover open={open} onOpenChange={setOpen}>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant={"input"}
-                              id="date-picker"
-                              className="justify-between font-normal"
-                            >
-                              {field.value
-                                ? field.value.toLocaleDateString()
-                                : "Select date"}
-                              <ChevronDownIcon />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent
-                            className="w-auto overflow-hidden p-0"
-                            align="start"
+                  <FormItem className="col-span-1">
+                    <Label>Date</Label>
+                    <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant="outline"
+                            disabled={isSubmitting}
+                            className="w-full justify-between font-normal"
+                            type="button"
                           >
-                            <Calendar
-                              mode="single"
-                              selected={field.value}
-                              captionLayout="dropdown"
-                              onSelect={(date) => {
-                                field.onChange(date);
-                                setOpen(false);
-                              }}
-                            />
-                          </PopoverContent>
-                        </Popover>
-                      </div>
-                    </FormControl>
+                            {field.value
+                              ? field.value.toLocaleDateString()
+                              : "Select date"}
+                            <ChevronDownIcon className="h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={field.value}
+                          onSelect={(date) => {
+                            field.onChange(date);
+                            setIsDatePickerOpen(false);
+                          }}
+                          disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                          autoFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              {/* Start Time */}
               <FormField
                 control={form.control}
                 name="time_from"
                 render={({ field }) => (
-                  <FormItem className="flex items-center gap-2">
-                    <FormControl className="flex-1">
-                      <div className="flex flex-col gap-3">
-                        <Label htmlFor="time-picker" className="px-1">
-                          From
-                        </Label>
-                        <Input
-                          type="time"
-                          id="time-picker"
-                          className="bg-background text-center appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-                          {...field}
-                        />
-                      </div>
+                  <FormItem className="col-span-1">
+                    <Label htmlFor="start-time">From</Label>
+                    <FormControl>
+                      <Input
+                        id="start-time"
+                        type="time"
+                        disabled={isSubmitting}
+                        className="text-center"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
 
+              {/* End Time */}
               <FormField
                 control={form.control}
                 name="time_until"
                 render={({ field }) => (
-                  <FormItem className="flex items-center gap-2">
-                    <FormControl className="flex-1">
-                      <div className="flex flex-col gap-3">
-                        <Label htmlFor="time-picker" className="px-1">
-                          Until
-                        </Label>
-                        <Input
-                          type="time"
-                          id="time-picker"
-                          className="bg-background mx-auto text-center appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none"
-                          {...field}
-                        />
-                      </div>
+                  <FormItem className="col-span-1">
+                    <Label htmlFor="end-time">Until</Label>
+                    <FormControl>
+                      <Input
+                        id="end-time"
+                        type="time"
+                        disabled={isSubmitting}
+                        className="text-center"
+                        {...field}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -204,33 +293,51 @@ export function AddEventModal({
               />
             </div>
 
+            {/* Category */}
             <FormField
               control={form.control}
               name="category"
               render={({ field }) => (
                 <FormItem className="flex items-center gap-2 pt-4">
-                  <Select value={field.value} onValueChange={field.onChange}>
-                    <FormControl className="flex-1">
+                  <Select 
+                    value={field.value} 
+                    onValueChange={field.onChange}
+                    disabled={isSubmitting}
+                  >
+                    <FormControl>
                       <SelectTrigger className="w-full">
                         <SelectValue placeholder="Select category" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="personal">Personal</SelectItem>
-                      <SelectItem value="work">Work</SelectItem>
-                      <SelectItem value="family">Family</SelectItem>
-                      <SelectItem value="vacation">Vacation</SelectItem>
+                      {CATEGORIES.map((category) => (
+                        <SelectItem key={category.value} value={category.value}>
+                          {category.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            <div className="flex justify-between pt-4">
-              <Button variant="outlinedark" onClick={handleCancel} type="button">
+
+            {/* Action Buttons */}
+            <div className="flex justify-end gap-3 pt-6">
+              <Button 
+                variant="outline" 
+                onClick={handleCancel} 
+                type="button"
+                disabled={isSubmitting}
+              >
                 Cancel
               </Button>
-              <Button type="submit">Save</Button>
+              <Button 
+                type="submit"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Creating..." : "Create Event"}
+              </Button>
             </div>
           </form>
         </Form>
