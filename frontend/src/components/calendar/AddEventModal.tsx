@@ -10,7 +10,7 @@ import {
   FormItem,
   FormMessage,
 } from "@/components/ui/form";
-import axios from "axios";
+//import axios from "axios";
 import {
   Select,
   SelectTrigger,
@@ -64,7 +64,7 @@ const CATEGORIES = [
   { value: "vacation", label: "Vacation" },
 ] as const;
 
-const API_BASE_URL = "http://localhost:4000";
+//const API_BASE_URL = "http://localhost:4000";
 
 interface AddEventModalProps {
   isOpen: boolean;
@@ -93,30 +93,34 @@ export function AddEventModal({
     },
   });
 
-  // API instance - memoized
+  /* API instance - memoized
   const api = useMemo(() => axios.create({
     baseURL: API_BASE_URL,
     headers: {
       "Content-Type": "application/json",
     },
   }), []);
+  */
 
   // Form submission handler
   const onSubmit = useCallback(async (values: EventFormValues) => {
     setIsSubmitting(true);
     
     try {
-      const response = await api.post('/api/events', {
-        ...values,
-        date: `${values.date.getFullYear()}-${String(values.date.getMonth() + 1).padStart(2, '0')}-${String(values.date.getDate()).padStart(2, '0')}`,
-      });
+      const response = await fetch(`/api/events?month=${values.date.getMonth}&year=${values.date.getFullYear}`);
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch event data');
+      }
+
+      const data = await response.json();
       
       if (response.status === 201) {
         toast.success('Event created successfully!');
         
         // Call parent callback with new event data
         if (onEventCreated) {
-          onEventCreated(response.data);
+          onEventCreated(data);
         }
         
         // Reset form and close modal
@@ -126,18 +130,12 @@ export function AddEventModal({
         toast.error('Failed to create event');
       }
     } catch (error) {
-      console.error('Error creating event:', error);
-      
-      if (axios.isAxiosError(error)) {
-        const errorMessage = error.response?.data?.message || 'Failed to create event';
-        toast.error(errorMessage);
-      } else {
-        toast.error('An unexpected error occurred');
-      }
+      console.error('Error fetching events:', error);
+      toast.error('Failed to load event data. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
-  }, [api, onEventCreated, onClose, form]);
+  }, [onEventCreated, onClose, form]);
 
   // Cancel handler
   const handleCancel = useCallback(() => {

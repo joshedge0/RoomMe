@@ -1,6 +1,7 @@
 "use client";
 
-import { signIn, signOut, useSession } from "next-auth/react";
+//import { signIn, signOut, useSession } from "next-auth/react";
+import { authClient } from "@/lib/auth-client"
 
 import { Button } from "../ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -14,8 +15,13 @@ import { DropdownMenuSeparator } from '@radix-ui/react-dropdown-menu';
 import { LogOut, UserCog } from 'lucide-react';
 import { ThemeSwitcher } from "./theme-switcher";
 
-export default function UserMenu() {
-  const { data: session } = useSession();
+export default function UserMenu() {  
+    const { 
+          data: session, 
+          isPending, //loading state
+          error, //error object
+          refetch //refetch the session
+      } = authClient.useSession() 
 
   /*
   if (!session) {

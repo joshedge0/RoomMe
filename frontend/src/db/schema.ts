@@ -1,17 +1,21 @@
 import { pgTable, serial, text, integer, date, timestamp, unique, boolean, foreignKey } from "drizzle-orm/pg-core"
-import { sql } from "drizzle-orm"
 
 
 
 export const events = pgTable("events", {
 	id: serial().primaryKey().notNull(),
 	name: text(),
-	calendarId: integer("calendar_id"),
-	userId: text("user_id"),
+	calendar_id: integer("calendar_id"),
+	user_id: text("user_id").references(() => user.id),
 	category: text(),
 	date: date(),
-	timeFrom: text("time_from"),
-	timeUntil: text("time_until"),
+	time_from: text("time_from"),
+	time_until: text("time_until"),
+});
+
+export const calendars = pgTable("calendars", {
+	id: serial().primaryKey().notNull(),
+	name: text()
 });
 
 export const verification = pgTable("verification", {

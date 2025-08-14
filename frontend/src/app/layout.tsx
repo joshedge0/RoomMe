@@ -2,7 +2,6 @@ import type React from 'react';
 import type { Metadata } from 'next';
 import './globals.css';
 import { Header } from '@/components/layout/header';
-import { SessionProvider } from 'next-auth/react';
 import { ThemeProvider } from '@/components/layout/theme-provider';
 import { Toaster } from 'react-hot-toast';
 
@@ -43,7 +42,6 @@ export default async function RootLayout({
       <body className="bg-background antialiased">
         <div className="w-full max-w-6xl mx-auto">
           <ThemeProvider attribute='class' defaultTheme='system' enableSystem>
-            <SessionProvider session={session}>
               <div className="flex flex-col min-h-screen">
                 <Header />
                 <div className='grow'>{children}</div>
@@ -51,7 +49,6 @@ export default async function RootLayout({
               
               <Toaster
               position="bottom-center" />
-            </SessionProvider>
           </ThemeProvider>
         </div>
       </body>

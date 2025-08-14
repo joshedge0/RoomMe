@@ -1,12 +1,12 @@
 "use client";
 
-import axios from "axios";
 import { Week } from "./week";
 import { AddEventModal } from "./AddEventModal";
 import { Button } from "../ui/button";
 import { ChevronRight, ChevronLeft } from "lucide-react";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { CalendarEvent } from '@/lib/types';
+import toast from 'react-hot-toast';
 
 // Types
 interface CalendarDate {
@@ -24,7 +24,6 @@ interface GenerateCalendarResult {
 
 // Constants
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const API_BASE_URL = "http://localhost:4000"; //dev
 
 function generateCalendarDates(year: number, month: number): GenerateCalendarResult {
   const firstDay = new Date(year, month, 1);
@@ -72,23 +71,24 @@ export function Calendar() {
   const year = currentMonth.getFullYear();
   const month = currentMonth.getMonth();
 
-  // API instance - memoized to prevent recreation
-  const api = useMemo(() => axios.create({
-    baseURL: API_BASE_URL,
-    headers: {
-      "Content-Type": "application/json",
-    },
-  }), []);
-
   // Fetch events effect
   useEffect(() => {
     const fetchEvents = async () => {
       setLoading(true);
       try {
-        const response = await api.get(`/api/events?year=${year}&month=${month}`);
-        setEvents(response.data);
+        let currentMonth = month + 1; // converted from 0-index to 1-index
+        const response = await fetch(`/api/events?year=${year}&month=${currentMonth}`);
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch event data');
+        }
+
+        const data = await response.json();
+        console.log(data.data);
+        setEvents(data.data);
       } catch (error) {
         console.error('Error fetching events:', error);
+        toast.error("Failed to fetch events.")
         // TODO: Add proper error handling/toast notification
       } finally {
         setLoading(false);
@@ -96,7 +96,7 @@ export function Calendar() {
     };
     
     fetchEvents();
-  }, [api, year, month]); // Fixed dependencies
+  }, [year, month]);
 
   // Events lookup map for performance
   const eventsByDate = useMemo((): Map<string, CalendarEvent[]> => {
